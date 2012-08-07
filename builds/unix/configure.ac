@@ -2,7 +2,7 @@
 #
 # Process this file with autoconf to produce a configure script.
 #
-# Copyright 2001-2011 by
+# Copyright 2001-2012 by
 # David Turner, Robert Wilhelm, and Werner Lemberg.
 #
 # This file is part of the FreeType project, and may only be used, modified,
@@ -11,13 +11,13 @@
 # indicate that you have read the license and understand and accept it
 # fully.
 
-AC_INIT([FreeType], [2.4.8], [freetype@nongnu.org], [freetype])
+AC_INIT([FreeType], [2.4.10], [freetype@nongnu.org], [freetype])
 AC_CONFIG_SRCDIR([ftconfig.in])
 
 
 # Don't forget to update docs/VERSION.DLL!
 
-version_info='14:0:8'
+version_info='15:0:9'
 AC_SUBST([version_info])
 ft_version=`echo $version_info | tr : .`
 AC_SUBST([ft_version])
@@ -67,28 +67,6 @@ AC_SUBST(EXEEXT_BUILD)
 
 
 
-# get compiler flags right
-
-if test "x$GCC" = xyes; then
-  XX_CFLAGS="-Wall"
-  XX_ANSIFLAGS="-pedantic -ansi"
-else
-  case "$host" in
-  *-dec-osf*)
-    CFLAGS=
-    XX_CFLAGS="-std1 -g3"
-    XX_ANSIFLAGS=
-    ;;
-  *)
-    XX_CFLAGS=
-    XX_ANSIFLAGS=
-    ;;
-  esac
-fi
-AC_SUBST([XX_CFLAGS])
-AC_SUBST([XX_ANSIFLAGS])
-
-
 # auxiliary programs
 
 AC_CHECK_PROG([RMF], [rm], [rm -f])
@@ -124,7 +102,7 @@ AC_CHECK_SIZEOF([long])
 
 # check whether cpp computation of size of int and long in ftconfig.in works
 
-AC_MSG_CHECKING([cpp computation of bit length in ftconfig.in works])
+AC_MSG_CHECKING([whether cpp computation of bit length in ftconfig.in works])
 orig_CPPFLAGS="${CPPFLAGS}"
 CPPFLAGS="-I${srcdir} -I. ${CPPFLAGS}"
 ac_clean_files="ft2build.h ftoption.h ftstdlib.h"
@@ -180,7 +158,8 @@ case :${ft_use_autoconf_sizeof_types}:${enable_biarch_config}: in
 esac
 
 if test x"${ft_use_autoconf_sizeof_types}" = xyes; then
-  AC_DEFINE([FT_USE_AUTOCONF_SIZEOF_TYPES])
+  AC_DEFINE([FT_USE_AUTOCONF_SIZEOF_TYPES], [],
+            [Define if autoconf sizeof types should be used.])
 fi
 
 CPPFLAGS="${orig_CPPFLAGS}"
@@ -220,6 +199,48 @@ fi
 AC_SUBST([FTSYS_SRC])
 
 AC_CHECK_FUNCS([memcpy memmove])
+
+
+# get compiler flags right
+#  we try to make the compiler work for C89-strict source.
+#  even if C compiler is GCC and C89 flags are available,
+#  some system headers (e.g. Android Bionic libc) is broken
+#  in C89 mode. we have to check the compilation finishes
+#  successfully.
+#
+if test "x$GCC" = xyes; then
+  XX_CFLAGS="-Wall"
+  XX_ANSIFLAGS=""
+  for a in -pedantic -ansi
+  do
+    AC_MSG_CHECKING([gcc compiler flag ${a} to assure ANSI C works correctly])
+    orig_CFLAGS="${CFLAGS}"
+    CFLAGS="${CFLAGS} ${XX_ANSIFLAGS} ${a}"
+    AC_COMPILE_IFELSE([
+        AC_LANG_PROGRAM([#include <stdio.h>],[{puts("");return 0;}])
+      ],[
+        AC_MSG_RESULT([ok, add it to XX_ANSIFLAGS])
+        XX_ANSIFLAGS="${XX_ANSIFLAGS} ${a}"
+      ],[
+        AC_MSG_RESULT([no])
+      ])
+    CFLAGS="${orig_CFLAGS}"
+  done
+else
+  case "$host" in
+  *-dec-osf*)
+    CFLAGS=
+    XX_CFLAGS="-std1 -g3"
+    XX_ANSIFLAGS=
+    ;;
+  *)
+    XX_CFLAGS=
+    XX_ANSIFLAGS=
+    ;;
+  esac
+fi
+AC_SUBST([XX_CFLAGS])
+AC_SUBST([XX_ANSIFLAGS])
 
 
 # check for system zlib
@@ -330,8 +351,8 @@ if test x$with_old_mac_fonts = xyes; then
       ])],
     [AC_MSG_RESULT([ok])
      ftmac_c='ftmac.c'
-     AC_MSG_CHECKING([OS_INLINE macro is ANSI compatible])
-     orig_CFLAGS="$CFLAGS"
+     AC_MSG_CHECKING([whether OS_INLINE macro is ANSI compatible])
+     orig_CFLAGS="$CFLAGS -DFT_MACINTOSH"
      CFLAGS="$CFLAGS $XX_CFLAGS $XX_ANSIFLAGS"
      AC_COMPILE_IFELSE([
        AC_LANG_PROGRAM([
